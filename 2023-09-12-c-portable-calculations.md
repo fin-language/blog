@@ -133,7 +133,7 @@ uint16_t calc_3(uint16_t a, uint16_t b)
 }
 ```
 
-Note that we don't need to wrap `(uint16_t)(a * b)` in parentheses like `((uint16_t)(a * b))` because the cast has higher precedence than the division. Adding extra parentheses is not the end of the world, but is also extra just noise.
+Note that we don't need to wrap `(uint16_t)(a * b)` in parentheses like `((uint16_t)(a * b))` because the cast has higher precedence than the division. Adding extra parentheses is not the end of the world, but is also just extra noise.
 
 
 ## Widening Cast
