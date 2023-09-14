@@ -33,6 +33,8 @@ If you do this math with a calculator, you'll get `1953.125` so we should be exp
 
 On the STM32, the result is `1953` as expected.
 
+<br>
+
 ![image](https://github.com/fin-language/blog/assets/274012/d04df1ca-5591-4902-bb7b-7ba21461d5e2)
 
 
@@ -49,7 +51,9 @@ On the AVR, the result is `33`!
 
 ![image](https://github.com/fin-language/blog/assets/274012/9eca5e6f-131e-4ea1-8838-90c23b520027)
 
-## What the flip!? `(╯°□°)╯︵ ┻━┻`
+<br>
+
+# What the flip!? `(╯°□°)╯︵ ┻━┻`
 What's going on? We used fixed width integers! Why is the AVR program getting a different result than the STM32 program?
 
 Well... the non portable `int` behavior snuck in without us noticing. In C, before arithmetic operations are performed, operands **smaller** than `int` are promoted to `int`.
@@ -557,13 +561,16 @@ Sometimes you want modulus/wrapping or saturating behavior on overflow though. T
 
 In the future, we will be able to add guards that fin can use to determine that there is no chance of under/overflow. In these cases, fin will omit any `i8` runtime checks on target embedded hardware.
 
-## fin - panic or exception?
+<br>
+
+# Panic or exception?
 Rust and zig both panic (AKA kill the program) when they detect an integer overflow/underflow. In fast/release builds, they don't check for overflow/underflow at all. Many people dislike these decisions (especially not checking), but runtime speed is an primary goal of both rust and zig.
 > Fin will have more granular methods of disabling safety checks *without* modifying source code. This prevents copy paste errors as detailed above in \*\*.
 
 Panicking makes sense for the needs of zig and rust, but I think it is a terrible default for embedded. Embedded systems often need to be reliable and may need to keep running in a "limp" mode even if a bug occurs.
 
-💀💀💀 Killing the program should <u>**NOT**</u> be the default behavior for embedded.💀💀💀
+## 💀 Killing the program should <u>**NOT**</u> be the default...💀
+... at least for embedded.
 
 If my code is controlling a tractor and a bug in a data logging system allows a variable to overflow, I want the program to have the choice on how to react:
 * I might want to shutdown the tractor gracefully (not just reboot and slam to a halt).
@@ -578,7 +585,7 @@ Hidden flow control is not ideal!
 ## Why do rust/zig panic?
 Because having error handling absolutely everywhere for any math (like `i++` in a for loop) is a pain. Rust and zig don't have exceptions, and requiring users to check all math in a rust/zig way is too verbose.
 
-Fin will support lightweight exceptions (not heavy like C++), but they will also be very **visible**.
+Fin will support lightweight exceptions (not heavy like C++), but they will also be very <u>**visible**</u>.
 
 When I'm working on a system that needs to be reliable, I want to see all the places where exceptions can occur at a glance. I don't want to have to dig through code and method declarations to find them.
 
