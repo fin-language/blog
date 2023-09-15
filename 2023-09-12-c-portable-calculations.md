@@ -619,3 +619,26 @@ u16 calc_1(u16 a, u16 b)
 ```
 
 I don't know about you, but I really like it :) Easy to read, portable, and safe.
+
+
+<br>
+
+# More info
+
+## Rust
+Rust good:
+* doesn't do implicit promotion to `int`
+* requires explicit truncation
+
+Rust cons:
+* *everything* requires explicit casting, even reasonable promotions that are completely safe. In rust, you have to write `(a as u32 + b as u 32)` instead of letting `b` promote safely to match `a`. I don't yet understand the value of this.
+* the rust `as` casts are frowned upon because it can hide bugs. The safe versions are much more verbose...
+
+Good info: https://www.reddit.com/r/rust/comments/16il864/is_rusts_way_of_handing_type_promotion_too/
+
+
+## Videos
+First half of this talk is really good: https://www.youtube.com/watch?v=F2cMqOhWgWY
+* compares C/C++, D, rust
+
+Haven't watched yet, but I'm looking forward to: https://www.youtube.com/watch?v=b0VjS0OKTmQ&ab_channel=CoreCppIL
