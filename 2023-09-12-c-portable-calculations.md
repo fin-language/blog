@@ -598,7 +598,17 @@ More thoughts to come...
 # Wait! I forgot...
 With all the talk about the various foot-guns in C/C++, I forgot to show a solution to our original problem using fin.
 
-Here's one possible solution that saturates if the result is too large.
+Here's a solution that will error if the result is too large to fit in a `u16`.
+
+```cs
+// fin - working solution
+u16 calc_1(u16 a, u16 b)
+{
+  return (a.u32 * b / 1024).as_u16();
+}
+```
+
+Here's a solution that saturates if the result is too large.
 
 ```cs
 // fin - working solution
