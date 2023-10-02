@@ -1,7 +1,7 @@
 # Intro
 While I love C, it does have a number of really annoying areas. One of them is integer math.
 
-Fin takes an approach to math similar to Rust, but much less verbose and even more safe.
+Fin takes an approach to math similar to Rust, but much less verbose and yet safer.
 
 The main goal is to make it easy to read/write portable and safe fin/C code.
 
@@ -36,30 +36,42 @@ But as soon as you do that, you get a ton of warnings about perfectly legal code
 
 ```c
 uint8_t b = 0;
-b = b + 1; // warning: conversion to ‘uint8_t from ‘int’ may alter its value
+b = b + 10; // warning: conversion to ‘uint8_t from ‘int’ may alter its value
 ```
 
 And now we have to put casts absolutely everywhere which I have trouble stomaching... 🤢
 ```c
 uint8_t b = 0;
-a = (uint8_t)(b + 1); // to avoid annoying warning with -Wconversion
+a = (uint8_t)(b + 10); // to avoid annoying warning with -Wconversion
 ```
 
 Once you start to feel the pain of `-Wconversion`, you can easily undertand why it was left out of `-Wall` and `-Wextra`. It's just too noisy.
 
-With fin, we get sane behavior.
+With fin, we get safety without excessive warnings and noise.
 
 
 ## More Expressive Operations
-C casts are a blunt and powerful tool. They also can easily hide mistakes because they are used for so many different things: truncation, widening, conversion, re-interpreting, etc.
+C casts are a powerful, yet blunt tool. They can easily hide mistakes because the same syntax is used for many different operations:
+* data widening conversions - `(uint32_t)my_u8`
+* data narrowing conversions - `(uint8_t)my_u32`
+* data narrowing and truncation - `(uint8_t)my_u32`
+* imprecise conversions - `(float)my_u32`
+* data re-interpretation - `(uint32_t)my_u8_ptr`
+* const/volatile conversions
+* etc.
 
-C casts are easy to read and write in bug free code, but they are annoying when debugging some old code that has a bug somewhere. You know there's a mistake somewhere, but you're not sure where. You see a lot of casts, but you have to question if they are being used correctly. Sometimes maintenance programming results in errors where a cast isn't updated correctly. What used to be a widening cast, becomes a truncation cast, and now you have a bug. 
+When looking at a c-style cast `(uint16_t)my_var`, it is not always apparent at a glance which of the above operations is being invoked. What they all have in common though is telling the compiler:
+> _"Trust me compiler! I know what I'm doing. Don't check for errors."_
 
-With `fin`, we have distinct operators. This makes it easier to read and write code that is less susceptible to many issues.
+That may be true at the time or writing and testing the code, but there's nothing in the language to ensure that it stays that way. New programmers inheriting the code, time pressures, refactoring, new features... can easily lead to mistakes where the compiler can't help us because we told it not to.
+
+Most languages ([even C++](https://stackoverflow.com/questions/1609163/what-is-the-difference-between-static-cast-and-c-style-casting)) have moved away from c-style casts because they are too broad and "dangerous". Sometimes maintenance programming results in errors where a cast isn't updated correctly. What used to be a widening cast, becomes a narrowing/truncating cast, and now we have a bug.
+
+With `fin`, we have distinct operators that allow us to express our intent. This makes it easier to read and write code that is less susceptible to many issues.
 
 
 ## Safe Mixing Of Signed & Unsigned
-Lot's of issues with C here.
+Lot's of issues with C here. Common source of bugs.
 
 ```c
 // C - implementation defined behavior
@@ -70,10 +82,10 @@ bool a_is_greater = a > b; // ??? need to know int size
 
 Fin solves this completely. More below.
 
-## No Auto Promotion To `int`
-C automatically promotes smaller integer types to `int` when performing arithmetic operations or comparisons. This makes it difficult to write portable/consistent code as you have to always be thinking about the potential size of `int` (16/32/64 bit). See STM32/AVR example below.
+## No Implicit Promotion To `int`
+C implicitly promotes smaller integer types to `int` when performing arithmetic operations or comparisons. This makes it difficult to write portable/consistent code as you have to always be thinking about the potential size of `int` (16/32/64 bit). See STM32/AVR example below.
 
-In `fin`, you can easily and safely widen to a larger type. More info to come.
+In `fin`, you can easily and safely widen to a larger type.
 
 
 <br>
@@ -111,19 +123,23 @@ To fix this, we explicitly convert `a` (and/or `b`) to u32 before doing the math
 uint16_t calc_7(uint16_t a, uint16_t b)
 {
   return (uint16_t)((uint32_t)a * b / 1024);
-  // what is intent of cast though?
+  // what is the intent of the `(uint16_t)` cast though?
 }
 ```
 
-But... is the u16 cast to avoid a compiler warning because truncation should never happen? Or is the truncation/wrapping behavior desired? It needs a comment to explain.
+But... is the `(uint16_t)` cast to avoid a compiler warning because truncation should never happen?
+
+Or is the truncation/wrapping behavior desired? It needs a comment to explain.
 
 ## `Fin` Solution
+The below `fin` code is equivalent to the fixed C99 code above. Later sections explain this code, but just take a quick peek for now. It's pretty easy to understand what is going on.
+
 ```cs
 // fin
 u16 calc_7(u16 a, u16 b)
 {
   return (a.u32 * b / 1024).unsafe_to_u16();
-  // Unsafe narrowing conversion tells the reader that truncation should never happen.
+  // "Unsafe" narrowing conversion tells the reader that truncation should never happen.
   // If truncation happens during C# simulation, an exception is thrown. More below.
 }
 ```
@@ -158,7 +174,7 @@ Unsigned values can be explicitly wrapped/truncated to smaller types with a numb
 > Note: we will not have wrap functions for signed integers because that is undefined or implementation defined behavior in C. We usually want modulo/wrapping behavior for unsigned values. I can't think of when I would want that with signed values at the time of writing this. If there are good use cases, we can add them.
 
 ## Checked Narrowing
-These methods truncate to smaller types, but they also check for overflow. If the value is too large, they set the `err` parameter to `true`. These methods generate to C function calls. The `err` parameter is only set on overflow (it is not cleared on success).
+These methods narrow to smaller data types, but they also check for overflow. If the value is too large, they set the `err` parameter to `true`. These methods generate to C function calls. The `err` parameter is only set on overflow (it is not cleared on success).
 
 ```cs
 // fin
@@ -204,7 +220,7 @@ Rust takes a different approach and requires explicit widening for all operands:
 // rust
 fn calc_7(a: u16, b: u16) -> u16
 {
-    return (u32::from(a) * u32::from(b) / 1024) as u16;
+  return (u32::from(a) * u32::from(b) / 1024) as u16;
 }
 ```
 
@@ -314,7 +330,7 @@ u8 calc_stuff(u16 a, u16 b, u16 c, Err err)
 <br>
 
 # Farther Future Error Handling
-Needs more thought, but I'm exploring the idea of having a global `Err` object. Checking `Err` would be required so that users don't accidentally forget. This would allow us to write code like below (simple, easy to read, no hidden exceptions), but also be perfectly safe. No runtime panics either like Rust.
+Needs more thought, but I'm exploring the idea of having a global `Err` object. Checking `Err` would be required so that users don't accidentally forget (like `errno`). This would allow us to write code like below (simple, easy to read, no hidden exceptions), but also be perfectly safe. No runtime panics either like Rust.
 
 ```cs
 // fin
@@ -327,17 +343,17 @@ u8 calc_stuff(u16 a, u16 b, u16 c)
 You have to either check `Err` or defer the check.
 
 ```cs
-// verbose explicit version
+// verbose explicit option (other options follow)
 u8 calc_duty_cycle(u16 a, u16 b)
 {
   u8 result = calc_stuff(a, b, 2);
-  if (Err.is_active) return 0;  // satisfies Fin
+  if (Err.is_active) return 0;  // required error check
 
   result = do_some_other_stuff(result);
-  if (Err.is_active) return 0;  // satisfies Fin
+  if (Err.is_active) return 0;  // required error check
 
   err++; // can also set Err flag
-  if (Err.is_active) return 0;  // satisfies Fin
+  if (Err.is_active) return 0;  // required error check
 
   return result;
 }
@@ -349,8 +365,8 @@ u8 calc_duty_cycle(u16 a, u16 b)
 {
   u8 result = 0;
   
-  try_to(() => {
-    // any error in this block will set Err flag and break out of `try_to`
+  break_on_err(() => {
+    // any error in this block will set Err flag and break out of `break_on_err`
     result = calc_stuff(a, b, 2);
     result = do_some_other_stuff(result);
     err++;
