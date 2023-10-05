@@ -313,8 +313,17 @@ u8 calc_stuff(u16 a, u16 b, u16 c)
 }
 ```
 
-## Explicit Handling
-As shown earlier.
+## Super Explicit Handling
+```cs
+// fin
+u8 calc_stuff(u16 a, u16 b, u16 c, Err err)
+{
+  return a.add(b, err).div(c, err).to_u8();
+}
+```
+
+
+## Explicit Handling (Natural Syntax)
 ```cs
 // fin
 u8 calc_stuff(u16 a, u16 b, u16 c, Err err)
@@ -454,8 +463,41 @@ Cons:
 
 
 
+## C99 - hand inlined functions
+Pros:
+- very easy to debug and follow
+- great for code coverage (if all branches are reachable)
+
+Cons:
+- harder to implement
+- large code size
+
+Pseudo code:
+```c
+//fin: a.add(b, err).div(c, err);
+uint8_t temp = a + b; // allow roll over
+if (temp < a)
+{
+	if (err.code == NO_ERR)
+		// overflow
+		err.code = OVERFLOW;
+}
+else
+{
+	if (c == 0 && err.code == NO_ERR)
+	{
+		err.code = DIV_BY_ZERO;
+	}
+	else
+	{
+		temp /= c;
+	}
+}
+```
 
 
+## Decision
+Start with whichever is easier to implement. Not bad either way with `fin: ` comment above.
 
 
 
@@ -496,3 +538,6 @@ return _wrap_u32_to_u16(
 ```
 
  -->
+
+
+
