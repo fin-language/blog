@@ -454,6 +454,14 @@ static inline uint32_t mult_u32(uint32_t a, uint32_t b) { /*...*/ }
 static inline uint32_t div_u32(uint32_t a, uint32_t b) { /*...*/ }
 static inline uint16_t wrap_u32_to_u16(uint32_t a) { /*...*/ }
 ```
+
+```c
+// Generated C99 - inline functions
+
+//fin: a.add(b, err).div(c, err);
+u8_checked_div( u8_checked_add(a, b, err), c, err);
+```
+
 Pros:
 - easy to read
 
