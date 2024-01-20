@@ -3,6 +3,7 @@ originally had thought about something like
 # `mem.place<type>`
 ```cs
 using var bike = mem.place<Bike>();
+Bike bike = mem.place<Bike>();
 ```
 
 # `mem.place(new Bike())`
@@ -68,5 +69,12 @@ Bike? heap_bike = mem.malloc(new Bike()); // requires ptr type because it could 
 Bike? heap_bike_2 = mem.heap(new Bike());
 
 mem.free(heap_bike);
+```
+
+```cs
+Bike? bike = mem_pool.allocate(new bike()); // null on err
+
+Packet ack = mem.stack(new Packet()); // and heap
+
 ```
 
