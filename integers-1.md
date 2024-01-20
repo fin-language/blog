@@ -63,7 +63,7 @@ C casts are a powerful, yet blunt tool. They can easily hide mistakes because th
 When looking at a c-style cast `(uint16_t)my_var`, it is not always apparent at a glance which of the above operations is being invoked. What they all have in common though is telling the compiler:
 > _"Trust me compiler! I know what I'm doing. Don't check for errors."_
 
-That may be true at the time or writing and testing the code, but there's nothing in the language to ensure that it stays that way. New programmers inheriting the code, time pressures, refactoring, new features... can easily lead to mistakes where the compiler can't help us because we told it not to.
+That may be true at the time of writing and testing the code, but there's nothing in the language to ensure that it stays that way. New programmers inheriting the code, time pressures, refactoring, new features... can easily lead to mistakes where the compiler can't help us because we told it not to.
 
 Most languages ([even C++](https://stackoverflow.com/questions/1609163/what-is-the-difference-between-static-cast-and-c-style-casting)) have moved away from c-style casts because they are too broad and "dangerous". Sometimes maintenance programming results in errors where a cast isn't updated correctly. What used to be a widening cast, becomes a narrowing/truncating cast, and now we have a bug.
 
