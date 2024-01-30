@@ -161,7 +161,7 @@ u16 calc_7(u16 a, u16 b)
 
 # `Fin` Specification
 
-Example fin conversions:
+Overview of fin conversions:
 
 | Conversion Type                                  | Example             | Fin Code                     | Error              | Notes  |
 | ------------------------------------------------ | ------------------- | ---------------------------- | ------------------ | ------ |
@@ -333,6 +333,195 @@ u16 + i32 -> i32  // i32 can hold all of u16
 ...
 ```
 
+<br>
+<br>
+
+# Math Mode & Error Handling
+Fin currently has 2 math modes:
+
+| Math Mode         | C# simulation error behavior               | C code error behavior |
+| ----------------- | ------------------------------------------ | --------------------- |
+| unsafe            | throws exception                           | unchecked             |
+| user provided err | sets error flag (exception if not checked) | sets error flag       |
+
+
+## You must choose a math mode
+Eventually, fin will default to a safe math mode (that doesn't yet exist), but for now you must explicitly choose a math mode. We haven't decided on the future default safe math mode yet. Will it use lightweight exceptions? Lots to discuss around exceptions, but we don't need to worry about that for now. We have good options already.
+
+If you forget to choose a math mode, fin will throw an exception in C# simulation.
+
+```cs
+// fin
+public void simple_1()
+{
+    u8 a = 200;
+    a += 1;  // C# exception thrown here!
+}
+```
+```
+System.InvalidOperationException : Math mode must be specified for now (until fin default established).
+```
+
+
+## Unsafe Mode
+Unsafe will be supported in code generation first.
+
+Example of unsafe mode:
+
+```cs
+// fin
+public void simple_1()
+{
+    math.unsafe_mode(); // should be at top of function scope
+    u8 a = 200;
+    a += 200;  // C# exception thrown here!
+}
+```
+
+```
+System.OverflowException : Overflow! `200 (u8) + 200 (u8)` result `400` is beyond u8 type MAX limit of `255`. Explicitly widen before `+` operation.
+```
+Because we are using C# for fin simulation, we also get full stack trace information which is really nice.
+
+Generated C code:
+```c
+// C99
+void simple_1(void)
+{
+    // fin: math.unsafe_mode();
+    u8 a = 200;
+    a += 200; // no error checking in C code (unsafe mode)
+}
+```
+
+## User Provided Error Mode
+Available for simulation now. Will be supported in C code generation after unsafe mode.
+
+```cs
+// fin
+public void simple_2()
+{
+    Err err = mem.stack(new Err()); // stack allocated error object
+    math.capture_errors(err);
+
+    u8 a = 255;
+    a += 2;  // No exception thrown here! It did however set the err flag.
+             // Note: the value of `a` is now `1` because of wrapping.
+
+    if (err.has_error())
+    {
+        // do stuff
+        err.clear();
+    }
+}
+```
+
+You can do multiple operations before checking for errors. The error flag is only set if an error occurs.
+
+```cs
+// fin
+public void simple_3()
+{
+    Err err = mem.stack(new Err());
+    math.capture_errors(err);
+
+    u8 a = 255;
+    a += 2;
+    u8 b = a + 6;
+    u8 c = a * 2;
+    // a == 1, b == 7, c == 2
+
+    if (err.has_error())
+    {
+        // do stuff
+        err.clear();
+    }
+}
+```
+
+You can also pass the `Err` object to helper methods like shown below:
+
+```cs
+// fin
+private static u8 calc(Err err, u8 a, u8 b)
+{
+    math.capture_errors(err);
+    u8 c = a + b;
+    return c;
+    // no need to check or clear err here, because the err object was provided to this function.
+}
+
+public void simple_4()
+{
+    Err err = mem.stack(new Err());
+    math.capture_errors(err);
+
+    u8 a = 100;
+    u8 b = 200;
+    u8 c = calc(err, a, b);
+    // a == 100, b == 200, c == 44
+
+    if (err.has_error())
+    {
+        // do stuff
+        err.clear();
+    }
+}
+```
+
+### Avoiding Error Flag Pitfalls
+It is a common problem in C for developers to forget to check for errors. Fin partially solves this now by throwing an exception in C# simulation if you forget to check for errors.
+
+```cs
+// fin
+public void simple_2()
+{
+    Err err = mem.stack(new Err());
+    math.capture_errors(err);
+
+    u8 a = 255;
+    a += 2;
+    // forgot to check for errors here!
+}
+```
+```
+finlang.err.ErrMisuseException : Err error must be read and cleared before going out of scope (stack object destructed).
+```
+
+You also can't clear an error that hasn't been read.
+
+```cs
+// fin
+public void simple_2()
+{
+    Err err = mem.stack(new Err());
+    math.capture_errors(err);
+
+    u8 a = 255;
+    a += 2;
+    err.clear(); // Exception! Can't clear an error that hasn't been read.
+}
+```
+```
+ErrMisuseException : Err error not read before cleared. If you really don't care use `disregard_any_error()`.
+```
+
+If you really don't care about the error, you can disregard it:
+```cs
+// fin
+public void simple_2()
+{
+    Err err = mem.stack(new Err());
+    math.capture_errors(err);
+
+    u8 a = 255;
+    a += 2;
+    err.disregard_any_error(); // no exception
+}
+```
+
+<!-- 
+
 ## Overflow, Divide By Zero Detection
 You can chain math calls together. If any overflow or divide by zero occurs, the `Err` object will be set.
 
@@ -343,7 +532,6 @@ u8 calc_stuff(u8 a, u8 b, u8 c, Err err)
   return a.add(b, err).div(c, err);
 }
 ```
-<!-- 
 
 ## Best Of Both Worlds
 In the nearish future, we will also be able to write something like the below code which is equivalent to `a.add(b, err).div(c, err)` code. This allows even more natural mathematical expressions, but also captures errors.
