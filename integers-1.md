@@ -210,7 +210,7 @@ Unsigned values can be explicitly wrapped/truncated to smaller types with a numb
 > Future functions: `u8.wrap(my_u16)` - class methods.
 
 ## Narrowing
-If math mode is unsafe, narrowing conversions will check for overflow in fin/C# simulation/tests, but the generated C code does not. This is useful if size or performance is a concern.
+If math mode (covered in a below section) is unsafe, narrowing conversions will check for overflow in fin/C# simulation/tests, but the generated C code does not. This is useful if size or performance is a concern.
 
 If math mode is user error capturing, narrowing conversions will check for overflow in fin/C# simulation/tests and in the generated C code. This is useful when correctness is a primary concern.
 
