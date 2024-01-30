@@ -11,15 +11,17 @@ If you want to truncate a variable, you have to explicitly do so in fin.
 In C, it is perfectly legal to write buggy code like below:
 
 ```c
+// C99
 // silent truncation from u32 to u8
 uint8_t add(uint32_t a, uint32_t b)
 {
   uint32_t result = a * b;
-  return result;
+  return result; // !!! silent truncation from u32 to u8
 }
 ```
 
 ```c
+// C99
 // silent conversion from i32 to u8
 void use_u8(uint8_t a)
 {
@@ -27,20 +29,22 @@ void use_u8(uint8_t a)
 }
 
 int32_t a = -55555555; // some value that doesn't fit in u8
-use_u8(a);
+use_u8(a); // !!! silent conversion from i32 to u8
 ```
 
-You won't get warnings about the above mistakes with `-Wall`, `-Wextra`, or `-Wpedantic`. You have to explicitly enable `-Wconversion` to get a warning.
+You won't get GCC `C99` warnings about the above mistakes with `-Wall`, `-Wextra`, or `-Wpedantic`. You have to explicitly enable `-Wconversion` to get a warning.
 
 But as soon as you do that, you get a ton of warnings about perfectly legal code like:
 
 ```c
+// C99
 uint8_t b = 0;
-b = b + 10; // warning: conversion to ‘uint8_t from ‘int’ may alter its value
+b = b + 10; // GCC warning: conversion to ‘uint8_t from ‘int’ may alter its value
 ```
 
 And now we have to put casts absolutely everywhere which I have trouble stomaching... 🤢
 ```c
+// C99
 uint8_t b = 0;
 a = (uint8_t)(b + 10); // to avoid annoying warning with -Wconversion
 ```
@@ -52,18 +56,23 @@ With fin, we get safety without excessive warnings and noise.
 
 ## More Expressive Operations
 C casts are a powerful, yet blunt tool. They can easily hide mistakes because the same syntax is used for many different operations:
-* data widening conversions - `(uint32_t)my_u8`
-* data narrowing conversions - `(uint8_t)my_u32`
-* data narrowing and truncation - `(uint8_t)my_u32`
-* imprecise conversions - `(float)my_u32`
-* data re-interpretation - `(uint32_t)my_u8_ptr`
-* const/volatile conversions
-* etc.
+
+| Conversion Type                             | C Code                |
+| ------------------------------------------- | --------------------- |
+| data type widening                          | `(uint32_t)my_u8`     |
+| data type narrowing (no expected data loss) | `(uint8_t)my_u32`     |
+| data type narrowing and truncation          | `(uint8_t)my_u32`     |
+| data type conversion                        | `(uint8_t)my_i8`      |
+| imprecise conversion                        | `(float)my_u32`       |
+| data re-interpretation                      | `(uint32_t)my_u8_ptr` |
+| remove const                                | `(uint8_t*)my_ptr`    |
+| remove volatile                             | `(uint8_t*)my_ptr`    |
+| etc.                                        | ...                   |
 
 When looking at a c-style cast `(uint16_t)my_var`, it is not always apparent at a glance which of the above operations is being invoked. What they all have in common though is telling the compiler:
 > _"Trust me compiler! I know what I'm doing. Don't check for errors."_
 
-That may be true at the time of writing and testing the code, but there's nothing in the language to ensure that it stays that way. New programmers inheriting the code, time pressures, refactoring, new features... can easily lead to mistakes where the compiler can't help us because we told it not to.
+That may be true at the time of writing the code, but there's nothing in the language to ensure that it stays that way. New programmers inheriting the code, time pressures, refactoring, new features... can easily lead to mistakes where the compiler can't help us because we told it not to.
 
 Most languages ([even C++](https://stackoverflow.com/questions/1609163/what-is-the-difference-between-static-cast-and-c-style-casting)) have moved away from c-style casts because they are too broad and "dangerous". Sometimes maintenance programming results in errors where a cast isn't updated correctly. What used to be a widening cast, becomes a narrowing/truncating cast, and now we have a bug.
 
@@ -138,9 +147,12 @@ The below `fin` code is equivalent to the fixed C99 code above. Later sections e
 // fin
 u16 calc_7(u16 a, u16 b)
 {
-  return (a.u32 * b / 1024).unsafe_to_u16();
-  // "Unsafe" narrowing conversion tells the reader that truncation should never happen.
-  // If truncation happens during C# simulation, an exception is thrown. More below.
+  return (a.u32 * b / 1024).narrow_to_u16();
+  // - `a.u32` is a safe widening of a to u32
+  // - `b` is implicitly widened to u32 to match `a.u32`
+  // - `.narrow_to_u16()` is a narrowing conversion that checks for data loss/truncation.
+  //   If truncation happens during C# simulation, an exception is thrown. The generated C code
+  //   can either check for truncation or not depending on the math mode. More below.
 }
 ```
 
@@ -148,6 +160,28 @@ u16 calc_7(u16 a, u16 b)
 <br>
 
 # `Fin` Specification
+
+Example fin conversions:
+
+| Conversion Type                                  | Example             | Fin Code                     | Error              | Notes  |
+| ------------------------------------------------ | ------------------- | ---------------------------- | ------------------ | ------ |
+| safe data type widening                          | `u8` to `u32`       | `my_u8.u32`                  | No error possible  |        |
+| " "                                              | `u32` from `u8`     | `u32.from(my_u8)`            | " "                |        |
+| " "                                              | `u8` to `i16`       | `my_u8.i16`                  | " "                |        |
+| data type narrowing <br> (no expected data loss) | `u32` to `u8`       | `my_u32.narrow_to_u8()`      | Error if data loss |        |
+| "                 "                              | `i8` to `u8`        | `(u8)my_i8`                  | " "                | `CAST` |
+| "                 "                              | `i8` to `u8`        | `my_i8.narrow_to_u8()`       | " "                |        |
+| "                 "                              | `u8` from `i8`      | `u8.narrow_from(my_i8)`      | " "                |        |
+| data type narrowing <br> and wrapping/truncation | `u32` to `u8`       | `my_u32.wrap_to_u8()`        | No error possible  | `NT`   |
+| data type re-interpretation                      | `i8` as `u8`        | `my_i8.get_bits()`           |                    |        |
+| " "                                              | `u8` as `i8`        | `my_u8.bits_to_i8()`         |                    | `RI`   |
+| " "                                              | `u8` bits from `i8` | `my_u8.set_bits_from(my_i8)` |                    | `RI`   |
+| imprecise conversions                            |                     | TBD                          |                    |        |
+| const/volatile conversions                       |                     | TBD                          |                    |        |
+
+* Note `CAST` - Casts between types in fin are treated the same as a narrowing conversion. It is an error to cast `-1` to `u8` in fin. See bits methods for data reinterpretation if that's what you need.
+* Note `NT` - converting from unsigned to signed is implementation defined behavior in C. Will not be initially supported in fin. Users can manually implement it though.
+* Note `RI` - implementation defined when converting between signed/unsigned or we can use `memcpy()` (slower, but safer). Probably want a compiler switch here.
 
 ## Safe Widening Operators
 It is safe to widen to larger types so fin provides succinct properties (`u16 a` example):
@@ -161,7 +195,7 @@ It is safe to widen to larger types so fin provides succinct properties (`u16 a`
 
 Note that `u16` types do <u>NOT</u> have `a.u8`, `a.u16`, `a.i8`, `a.i16` because those are not safe widening operations.
 
-## Explicit Saturation
+## Explicit Saturation (not yet implemented)
 Values can be converted to smaller types in a saturating manner with a number of methods (`u16 a` example):
 * `a.sat_u8()`  - converts to `u8` clamping to limits. Function call in C.
 * `a.sat_i8()`  - converts to `i8` clamping to limits. Function call in C.
@@ -173,18 +207,26 @@ Unsigned values can be explicitly wrapped/truncated to smaller types with a numb
 
 > Note: we will not have wrap functions for signed integers because that is undefined or implementation defined behavior in C. We usually want modulo/wrapping behavior for unsigned values. I can't think of when I would want that with signed values at the time of writing this. If there are good use cases, we can add them.
 
-## Checked Narrowing
+> Future functions: `u8.wrap(my_u16)` - class methods.
+
+## Narrowing
+If math mode is unsafe, narrowing conversions will check for overflow in fin/C# simulation/tests, but the generated C code does not. This is useful if size or performance is a concern.
+
+If math mode is user error capturing, narrowing conversions will check for overflow in fin/C# simulation/tests and in the generated C code. This is useful when correctness is a primary concern.
+
+<!-- 
+## Explicitly Checked Narrowing
 These methods narrow to smaller data types, but they also check for overflow. If the value is too large, they set the `err` parameter to `true`. These methods generate to C function calls. The `err` parameter is only set on overflow (it is not cleared on success).
 
 ```cs
 // fin
 Err err = // stack allocated error object
 u16 a = 256 + 1;
-u8 b = a.to_u8(err);
+u8 b = a.narrow_to_u8(err);
 // b == 1, err.is_active == true
 
 err.clear();
-b = (a.u32 * b / 1024).to_u16(err);
+b = (a.u32 * b / 1024).narrow_to_u16(err);
 ```
 
 Why take an `Err` object as a parameter instead of returning a bool? Lots of reasons (allows chaining and combining, easy to read, ...). That said, we will likely eventually add another style for operations that return a `bool` instead of using an `Err` object:
@@ -192,39 +234,57 @@ Why take an `Err` object as a parameter instead of returning a bool? Lots of rea
 // fin
 u16 a = 256 + 1;
 u8 b;
-bool success = a.to_u8(out b);
+bool success = a.narrow_to_u8(out b);
 // b == 1, success == false
 
-success = (a.u32 * b / 1024).to_u16(out b); // I don't like this one much
+success = (a.u32 * b / 1024).narrow_to_u16(out b); // I don't like this one much
 // maybe we do it the opposite way like C23 (bool true means overflow).
 ```
+ -->
 
-## Unsafe Fast Narrowing
-We will also add something like `a.unsafe_to_u8()` which generates to `(uint8_t)a` in C.
-
-These methods check for overflow in fin/C# simulation/tests, but the generated C code does not. This is useful if size or performance is a concern.
 
 ## Safe Implicit Widening
 In the below code, we don't need to do `b.u32` because it is automatically widened to match `a.u32` before the multiplication.
 
 ```cs
 // fin
-u16 calc_7(u16 a, u16 b)
+u32 calc_7(u16 a, u16 b)
 {
-  return (a.u32 * b / 1024).wrap_u16();
+  return (a.u32 * b / 1024);
 }
 ```
 Rust takes a different approach and requires explicit widening for all operands:
 
 ```rust
 // rust
-fn calc_7(a: u16, b: u16) -> u16
+fn calc_7(a: u16, b: u16) -> u32
 {
-  return (u32::from(a) * u32::from(b) / 1024) as u16;
+  return (u32::from(a) * u32::from(b) / 1024);
 }
 ```
 
 We can add a `fin` option to require explicit widening if desired.
+
+
+<!-- 
+## Implementation Defined Behavior
+Converting to unsigned types is always well defined. Converting to signed types is implementation defined behavior in C.
+
+> https://en.cppreference.com/w/c/language/conversion<br>
+**Integer conversions**<br>
+A value of any integer type can be implicitly converted to any other integer type. Except where covered by promotions and boolean conversions above, the rules are:<br>
+\- if the target type can represent the value, the value is unchanged<br>
+\- otherwise, if the target type is unsigned, the value 2^b, where b is the number of value bits in the target type, is repeatedly subtracted or added to the source value until the result fits in the target type. In other words, unsigned integers implement modulo arithmetic.<br>
+\- otherwise, if the target type is signed, the behavior is implementation-defined (which may include raising a signal)
+
+ -->
+
+
+
+
+
+
+
 
 
 ## Mixing Signed & Unsigned
@@ -283,7 +343,7 @@ u8 calc_stuff(u8 a, u8 b, u8 c, Err err)
   return a.add(b, err).div(c, err);
 }
 ```
-
+<!-- 
 
 ## Best Of Both Worlds
 In the nearish future, we will also be able to write something like the below code which is equivalent to `a.add(b, err).div(c, err)` code. This allows even more natural mathematical expressions, but also captures errors.
@@ -308,8 +368,8 @@ In the future, math will be safe by default. If you want to ignore potential err
 // fin
 u8 calc_stuff(u16 a, u16 b, u16 c)
 {
-  Math.unsafe_mode(); // ignore `a+b` overflow, divide by zero, return truncation
-  return ((a + b) / c).unsafe_to_u8();
+  Math.unsafe_mode(); // ignore `a+b` overflow, divide by zero
+  return ((a + b) / c).narrow_to_u8();
 }
 ```
 
@@ -437,7 +497,7 @@ else
 
 ## Decision
 Start with whichever is easier to implement. Not bad either way with `fin: ` comment above.
-
+ -->
 
 
 <!-- 
