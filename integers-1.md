@@ -389,7 +389,7 @@ Generated C code:
 void simple_1(void)
 {
     // fin: math.unsafe_mode();
-    u8 a = 200;
+    uint8_t a = 200;
     a += 200; // no error checking in C code (unsafe mode)
 }
 ```

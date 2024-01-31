@@ -58,7 +58,7 @@ interrupt_source |= (1 << source); // bug if overflows
 ```
 
 ### Errors
-In addition catching overflows, we also want to guard against undefined C behavior:
+In addition to catching overflows, we also want to guard against undefined C behavior:
 * shift causing an overflow
 * shifting by a negative value
 * shifting by more than the type can hold
