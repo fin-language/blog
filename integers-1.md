@@ -172,7 +172,7 @@ Overview of fin conversions:
 | "                 "                              | `i8` to `u8`        | `(u8)my_i8`                  | " "                | `CAST` |
 | "                 "                              | `i8` to `u8`        | `my_i8.narrow_to_u8()`       | " "                |        |
 | "                 "                              | `u8` from `i8`      | `u8.narrow_from(my_i8)`      | " "                |        |
-| data type narrowing <br> and wrapping/truncation | `u32` to `u8`       | `my_u32.wrap_to_u8()`        | No error possible  | `NT`   |
+| data type narrowing <br> and wrapping/truncation | `u32` to `u8`       | `my_u32.wrap_u8`             | No error possible  | `NT`   |
 | data type re-interpretation                      | `i8` as `u8`        | `my_i8.get_bits()`           |                    |        |
 | " "                                              | `u8` as `i8`        | `my_u8.bits_to_i8()`         |                    | `RI`   |
 | " "                                              | `u8` bits from `i8` | `my_u8.set_bits_from(my_i8)` |                    | `RI`   |
@@ -193,7 +193,26 @@ It is safe to widen to larger types so fin provides succinct properties (`u16 a`
 * `a.f64` - safe widening to `f64`. Generates to `(double)a` in C.
 * ...
 
-Note that `u16` types do <u>NOT</u> have `a.u8`, `a.u16`, `a.i8`, `a.i16` because those are not safe widening operations.
+Note that `u16` types do <u>NOT</u> have `a.u8`, `a.i8`, `a.i16` because those are not safe widening operations.
+
+Examples:
+
+```cs
+// fine, but the sizes are unclear
+y = a * x + b;
+```
+
+```cs
+// we know this is for sure u16 math
+y = a.u16 * x.u16 + b.u16;
+```
+
+```cs
+// we can see different sizes here
+y = a.i16 * x.u16 + b.i32;
+```
+
+
 
 ## Explicit Saturation (not yet implemented)
 Values can be converted to smaller types in a saturating manner with a number of methods (`u16 a` example):
@@ -203,7 +222,7 @@ Values can be converted to smaller types in a saturating manner with a number of
 
 ## Explicit Wrapping/Truncation
 Unsigned values can be explicitly wrapped/truncated to smaller types with a number of methods  (`u16 a` example):
-* `a.wrap_u8()` - wraps/truncates to `u8`. Generates to `(uint8_t)a` in C.
+* `a.wrap_u8` - wraps/truncates to `u8`. Generates to `(uint8_t)a` in C.
 
 > Note: we will not have wrap functions for signed integers because that is undefined or implementation defined behavior in C. We usually want modulo/wrapping behavior for unsigned values. I can't think of when I would want that with signed values at the time of writing this. If there are good use cases, we can add them.
 
